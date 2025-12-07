@@ -5,7 +5,7 @@ description = "Minimal MCP helper to send images through text-only models"
 authors = [{ name = "", email = "" }]
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["fastmcp>=2.13.3"]
 
 [project.scripts]
 mcp-tool-vision = "mcp_tool_vision.cli:main"
