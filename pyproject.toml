@@ -1,0 +1,15 @@
+[project]
+name = "mcp-tool-vision"
+version = "0.1.0"
+description = "Minimal MCP helper to send images through text-only models"
+authors = [{ name = "", email = "" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+mcp-tool-vision = "mcp_tool_vision.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
