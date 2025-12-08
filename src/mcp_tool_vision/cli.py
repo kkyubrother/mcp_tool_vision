@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
+from .client import CompletionError, CompletionRequest, env_default, request_completion
 from .payload import PayloadError, build_payload
 from .prompts import SYSTEM_PROMPTS
+
+ENV_ENDPOINT = "MCP_VISION_API_URL"
+ENV_MODEL = "MCP_VISION_MODEL"
+ENV_API_KEY = "MCP_VISION_API_KEY"
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -36,7 +42,27 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Output the payload as machine-readable JSON.",
+        help="Output the payload or response as machine-readable JSON.",
+    )
+    parser.add_argument(
+        "--call",
+        action="store_true",
+        help="Immediately call the /chat/completions endpoint with the payload.",
+    )
+    parser.add_argument(
+        "--endpoint",
+        default=env_default(ENV_ENDPOINT),
+        help=f"Base URL for the API (default: ${ENV_ENDPOINT}).",
+    )
+    parser.add_argument(
+        "--model",
+        default=env_default(ENV_MODEL),
+        help=f"Model name to send (default: ${ENV_MODEL}).",
+    )
+    parser.add_argument(
+        "--api-key",
+        default=env_default(ENV_API_KEY),
+        help=f"Optional API key for Authorization header (default: ${ENV_API_KEY}).",
     )
     return parser.parse_args(argv)
 
@@ -50,6 +76,18 @@ def emit_text_payload(payload: dict[str, str]) -> None:
     print(payload["summary"])
 
 
+def emit_text_response(payload: dict[str, str], response: dict) -> None:
+    emit_text_payload(payload)
+    print("\n# Model response\n")
+    choices = response.get("choices")
+    if choices:
+        content = choices[0].get("message", {}).get("content")
+        if content is not None:
+            print(content)
+            return
+    print(json.dumps(response, ensure_ascii=False, indent=2))
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     try:
@@ -58,11 +96,50 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
-    if args.json:
-        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
-        print()
+    if args.call:
+        if not args.model:
+            print("Error: --model is required when using --call.", file=sys.stderr)
+            return 1
+        if not args.endpoint:
+            print("Error: --endpoint is required when using --call.", file=sys.stderr)
+            return 1
+
+        req = CompletionRequest(
+            model=args.model,
+            system=payload["system"],
+            user=payload["user"],
+        )
+
+        try:
+            response = request_completion(
+                req, endpoint=args.endpoint, api_key=args.api_key
+            )
+        except CompletionError as exc:  # pragma: no cover - network errors
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+
+        if args.json:
+            output = {
+                "request": {
+                    "endpoint": args.endpoint,
+                    "model": args.model,
+                    "messages": [
+                        {"role": "system", "content": payload["system"]},
+                        {"role": "user", "content": payload["user"]},
+                    ],
+                },
+                "response": response,
+            }
+            json.dump(output, sys.stdout, ensure_ascii=False, indent=2)
+            print()
+        else:
+            emit_text_response(payload, response)
     else:
-        emit_text_payload(payload)
+        if args.json:
+            json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+            print()
+        else:
+            emit_text_payload(payload)
 
     return 0
 

@@ -1,9 +1,4 @@
-"""MCP helper utilities for routing images to text-only models."""
+"""Entry point exports."""
 
-__all__ = [
-    "SYSTEM_PROMPTS",
-    "build_payload",
-]
-
-from .prompts import SYSTEM_PROMPTS
-from .payload import build_payload
+__all__ = ["__version__"]
+__version__ = "0.1.0"
